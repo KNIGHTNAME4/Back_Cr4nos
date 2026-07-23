@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" href="/icon_energy3.png">
+<title>Redireccionado</title>
+<style>
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@200;300;400&display=swap');
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'DM Sans', 'Helvetica Neue', -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Fondo adaptivo ── */
+body {
+  background: #f0f6ff;
+}
+@media (prefers-color-scheme: dark) {
+  body { background: #060d1f; }
+}
+
+/* ── Canvas de fondo ── */
+#bg-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+/* ── Centrado del wordmark ── */
+.center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+/* ══════════════════════════════════
+   WORDMARK — intacto
+   ══════════════════════════════════ */
+.wordmark {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  white-space: nowrap;
+  animation: title-grow 0.7s cubic-bezier(0.16,1,0.3,1) 3.6s both;
+}
+
+@keyframes title-grow {
+  from { transform: scale(1); }
+  to   { transform: scale(1.22); }
+}
+
+.wordmark span {
+  display: inline-block;
+  font-size: 72px;
+  line-height: 1;
+  overflow: hidden;
+  vertical-align: baseline;
+  padding-bottom: 10px;
+  position: relative;
+  z-index: 2;
+}
+
+.energy-color { color: #29B6E8; }
+.cloud-color  { color: #0D2461; }
+
+.c-anchor {
+  color: #0D2461;
+  animation:
+    anchor-in 0.55s cubic-bezier(0.16,1,0.3,1) 0.55s forwards,
+    c-to-navy 0.5s  cubic-bezier(0.4,0,0.2,1)  2.75s forwards;
+}
+
+@keyframes c-to-navy {
+  from { color: #29B6E8; }
+  to   { color: #0D2461; }
+}
+
+.anchor {
+  font-weight: 300;
+  opacity: 0;
+  max-width: 0;
+  animation: anchor-in 0.55s cubic-bezier(0.16,1,0.3,1) forwards;
+}
+
+.e-anchor { animation-delay: 0.3s; }
+
+@keyframes anchor-in {
+  from { opacity: 0; max-width: 0;     transform: translateY(10px); }
+  to   { opacity: 1; max-width: 1.1ch; transform: translateY(0);    }
+}
+
+.grow {
+  font-weight: 300;
+  opacity: 0;
+  max-width: 0;
+  animation: grow-in 0.4s cubic-bezier(0.16,1,0.3,1) forwards;
+}
+
+@keyframes grow-in {
+  from { opacity: 0; max-width: 0; }
+  to   { opacity: 1; max-width: 1.1ch; }
+}
+
+.gn { animation-delay: 1.45s; }
+.ge { animation-delay: 1.58s; }
+.gr { animation-delay: 1.71s; }
+.gg { animation-delay: 1.84s; }
+.gy { animation-delay: 1.97s; }
+.gl { animation-delay: 2.25s; }
+.go { animation-delay: 2.38s; }
+.gu { animation-delay: 2.51s; }
+.gd { animation-delay: 2.64s; }
+
+.logo-img {
+  position: absolute;
+  top: 40%;
+  transform: translateY(-50%);
+  width: 140px;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: left 0.12s cubic-bezier(0.16,1,0.3,1);
+}
+
+.sweep-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sweep-wrapper::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 60%; height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255,255,255,0.0) 30%,
+    rgba(255,255,255,0.72) 50%,
+    rgba(255,255,255,0.0) 70%,
+    transparent 100%
+  );
+  opacity: 0;
+  animation: sweep 1.0s cubic-bezier(0.4,0,0.2,1) 3.1s forwards;
+  pointer-events: none;
+  z-index: 10;
+}
+
+@keyframes sweep {
+  0%   { left: -60%; opacity: 1; }
+  100% { left: 110%; opacity: 1; }
+}
+
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<div class="center">
+  <div class="sweep-wrapper">
+    <div class="wordmark" id="wordmark">
+      <span class="anchor e-anchor energy-color">e</span>
+      <span class="grow gn energy-color">n</span>
+      <span class="grow ge energy-color">e</span>
+      <span class="grow gr energy-color">r</span>
+      <span class="grow gg energy-color">g</span>
+      <span class="grow gy energy-color">y</span>
+      <span class="anchor c-anchor">c</span>
+      <span class="grow gl cloud-color">l</span>
+      <span class="grow go cloud-color">o</span>
+      <span class="grow gu cloud-color">u</span>
+      <span class="grow gd cloud-color">d</span>
+      <img src="/nube3.png" alt="" class="logo-img" id="nube" />
+    </div>
+  </div>
+</div>
+
+<script>
+  /* ── Wordmark JS — intacto ── */
+  const wordmark = document.getElementById('wordmark');
+  const nube     = document.getElementById('nube');
+  const spans    = Array.from(wordmark.querySelectorAll('span'));
+
+  const schedule = [
+    [0,  300],
+    [6,  550],
+    [1,  1450],
+    [2,  1580],
+    [3,  1710],
+    [4,  1840],
+    [5,  1970],
+    [7,  2250],
+    [8,  2380],
+    [9,  2510],
+    [10, 2640],
+  ];
+
+  const visibleSet = new Set();
+
+  function positionNube() {
+    if (visibleSet.size === 0) return;
+    const sorted = [...visibleSet].sort((a, b) => a - b);
+
+    let iLast;
+let iPrev;
+
+/* mientras se forma energy */
+if (sorted.length <= 7) {
+
+  iLast = 6; // c fija
+
+  iPrev = sorted[sorted.length - 1];
+
+} else {
+
+  /* cloud normal */
+  iLast = sorted[sorted.length - 1];
+
+  iPrev = sorted[sorted.length - 2];
+}
+
+
+
+
+
+    const wRect  = wordmark.getBoundingClientRect();
+    const rPrev  = spans[iPrev].getBoundingClientRect();
+    const rLast  = spans[iLast].getBoundingClientRect();
+
+   if (iLast === 6 && sorted.length <= 2) {
+  rLast = {
+    ...rLast,
+    right: rLast.left + 45
+  };
+}
+
+
+
+    const centerX = ((rPrev.left + rLast.right) / 1.94) - wRect.left;
+    nube.style.left = (centerX - nube.offsetWidth / 2) + 'px';
+  }
+
+ 
+
+  schedule.forEach(([domIdx, delay]) => {
+    setTimeout(() => {
+      visibleSet.add(domIdx);
+      if (visibleSet.size === 1) nube.style.opacity = '1';
+      requestAnimationFrame(() => requestAnimationFrame(() => positionNube()));
+    }, delay);
+  });
+
+  window.addEventListener('resize', () => positionNube());
+
+
+  /* ── Fondo animado ── */
+  const canvas = document.getElementById('bg-canvas');
+  const ctx    = canvas.getContext('2d');
+  const dark   = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+  // Paleta según modo
+  const CYAN  = dark ? 'rgba(41,182,232,'  : 'rgba(41,182,232,';
+  const NAVY  = dark ? 'rgba(29,68,160,'   : 'rgba(13,36,97,';
+  const WHITE = dark ? 'rgba(255,255,255,' : 'rgba(13,36,97,';
+
+  let W, H;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  /* Partículas flotantes */
+  const PARTICLE_COUNT = 55;
+  const particles = Array.from({ length: PARTICLE_COUNT }, () => makeParticle(true));
+
+  function makeParticle(random) {
+    return {
+      x:    random ? Math.random() * W : (Math.random() > 0.5 ? -10 : W + 10),
+      y:    Math.random() * H,
+      r:    1 + Math.random() * 2.5,
+      vx:   (Math.random() - 0.5) * 0.4,
+      vy:   -0.15 - Math.random() * 0.3,
+      life: 0.3 + Math.random() * 0.7,
+      color: Math.random() > 0.5 ? CYAN : NAVY,
+    };
+  }
+
+  /* Contornos / rings flotantes */
+  const RING_COUNT = 7;
+  const rings = Array.from({ length: RING_COUNT }, (_, i) => makeRing(i, true));
+
+  function makeRing(i, random) {
+    const big = i < 3;
+    return {
+      x:     random ? Math.random() * W : W * 0.5 + (Math.random() - 0.5) * W * 0.6,
+      y:     random ? Math.random() * H : H * 1.1,
+      r:     (big ? 120 : 40) + Math.random() * (big ? 160 : 60),
+      vx:    (Math.random() - 0.5) * 0.15,
+      vy:    -0.08 - Math.random() * 0.12,
+      alpha: 0,
+      targetAlpha: (dark ? 0.07 : 0.05) + Math.random() * 0.06,
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.003 + Math.random() * 0.004,
+      color: Math.random() > 0.5 ? CYAN : NAVY,
+      lw:    0.5 + Math.random() * 1,
+    };
+  }
+
+  /* Líneas de conexión entre partículas cercanas */
+  const CONNECT_DIST = 110;
+
+  function draw(ts) {
+    ctx.clearRect(0, 0, W, H);
+
+    /* fondo base ya lo pone el CSS, solo pintamos efectos */
+
+    /* rings */
+    rings.forEach((ring, i) => {
+      ring.alpha += (ring.targetAlpha - ring.alpha) * 0.02;
+      ring.x += ring.vx + Math.sin(ts * ring.speed + ring.phase) * 0.3;
+      ring.y += ring.vy;
+
+      /* pulso: radio oscila suavemente */
+      const pulse = ring.r + Math.sin(ts * ring.speed * 1.5 + ring.phase) * ring.r * 0.04;
+
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, pulse, 0, Math.PI * 2);
+      ctx.strokeStyle = ring.color + ring.alpha + ')';
+      ctx.lineWidth   = ring.lw;
+      ctx.stroke();
+
+      /* segundo contorno interior */
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, pulse * 0.65, 0, Math.PI * 2);
+      ctx.strokeStyle = ring.color + ring.alpha * 0.5 + ')';
+      ctx.lineWidth   = ring.lw * 0.5;
+      ctx.stroke();
+
+      if (ring.y + ring.r < -50) {
+        rings[i] = makeRing(i, false);
+        rings[i].y = H + ring.r;
+      }
+    });
+
+    /* conexiones */
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const d  = Math.sqrt(dx * dx + dy * dy);
+        if (d < CONNECT_DIST) {
+          const a = (1 - d / CONNECT_DIST) * 0.18 * Math.min(particles[i].life, particles[j].life);
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = WHITE + a + ')';
+          ctx.lineWidth   = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+
+    /* partículas */
+    particles.forEach((p, i) => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= 0.0008;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.color + Math.max(0, p.life * 0.8) + ')';
+      ctx.fill();
+
+      if (p.life <= 0 || p.y < -10) {
+        particles[i] = makeParticle(false);
+      }
+    });
+
+    requestAnimationFrame(draw);
+  }
+
+  requestAnimationFrame(draw);
+
+
+  // ─── Redirigir a /app de forma independiente (SÁCALO DEL IF) ───────────────────
+setTimeout(() => {
+  console.log("Intentando redirigir a /app...");
+  window.location.href = '/app'; 
+}, 4900); // 4.9 segundos es el tiempo justo cuando termina todo
+</script>
+
+</body>
+</html>
