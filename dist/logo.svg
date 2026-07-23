@@ -1,0 +1,13 @@
+<svg xmlns="http://w3.org" viewBox="0 0 500 500" width="100%" height="100%">
+  <!-- Fondo Negro -->
+  <rect width="500" height="500" fill="#000000" />
+  
+  <!-- Grupo del Logotipo Blanco -->
+  <g fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Letra 'e' -->
+    <path d="M 175 270 C 175 220, 100 220, 100 270 C 100 325, 175 325, 175 295 M 102 270 L 173 270" />
+    
+    <!-- Silueta de la Nube -->
+    <path d="M 140 155 C 170 125, 230 145, 245 155 C 275 125, 375 115, 385 185 C 415 195, 455 245, 415 295 C 385 330, 335 320, 315 320" />
+  </g>
+</svg>
