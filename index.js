@@ -11,10 +11,30 @@ const cookieParser = require('cookie-parser'); // creado el 16/05/2026 V0.0.4
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+
+// antes: const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ noServer: true });
+
 
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'encodex-secret-change-me'; // creado el 16/05/2026 V0.0.4
+
+const { attachPtyBridge } = require('./mqtt-pty-bridge');
+const { wssPty } = attachPtyBridge(server, {
+  jwtSecret: JWT_SECRET,
+  mqttUrl: "mqtt://mqtt.ecdata.ai:1883",
+  mqttUser: "mqtt",
+  mqttPass: "mqtt2018teknaria",
+});
+
+server.on("upgrade", (req, socket, head) => {
+  const { pathname } = new URL(req.url, "http://localhost");
+  if (pathname === "/ws/pty") {
+    wssPty.handleUpgrade(req, socket, head, (ws) => wssPty.emit("connection", ws, req));
+  } else {
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+  }
+});
 
 // Serve React build
 //app.use(express.static(path.join(__dirname, 'dist')));
