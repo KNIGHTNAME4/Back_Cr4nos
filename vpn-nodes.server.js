@@ -102,16 +102,21 @@ adminRouter.get('/', (req, res) => {
 
 adminRouter.put('/:machineId', async (req, res) => {
   const { machineId } = req.params;
-  const { name } = req.body || {};
-  if (!name || !name.trim()) {
-    return res.status(400).json({ error: 'nombre invalido' });
-  }
+  const { name, uuid, mac } = req.body || {};
 
   const db = loadDB();
   const node = db.nodes[machineId];
   if (!node) return res.status(404).json({ error: 'nodo no encontrado' });
 
-  node.name = name.trim();
+  // cada campo se actualiza solo si vino en el body — asi el modal de
+  // "editar" puede mandar solo uuid+mac sin pisar el nombre, o al reves.
+  if (name !== undefined) {
+    if (!name.trim()) return res.status(400).json({ error: 'nombre invalido' });
+    node.name = name.trim();
+  }
+  if (uuid !== undefined) node.uuid = uuid.trim();
+  if (mac !== undefined) node.mac = mac.trim();
+
   await saveDB(db);
   res.json(node);
 });
