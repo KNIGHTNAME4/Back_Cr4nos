@@ -6,6 +6,7 @@ const { WebSocketServer } = require('ws');
 const jwt = require('jsonwebtoken');  // creado el 16/05/2026 V0.4
 const { initDB, getAllNodes } = require('./Serverxt2');
 const { router: authRouter } = require('./auth.server'); // creado el 16/05/2026 V0.0.4
+const { bridgeRouter: vpnBridgeRouter, adminRouter: vpnAdminRouter, initVpnNodesDB } = require('./vpn-nodes.server');
 const cookieParser = require('cookie-parser'); // creado el 16/05/2026 V0.0.4
 
 
@@ -48,6 +49,10 @@ app.use('/api', requireAuth);
  
 // ─── Auth routes ──────────────────────────────────────────────────────────────
 app.use('/auth', authRouter);
+
+
+app.use('/bridge/vpn-nodes', vpnBridgeRouter);   // lo llama la VM, secreto propio, no JWT
+app.use('/api/vpn-nodes', vpnAdminRouter);       // lo llama el React, ya queda protegido por el requireAuth de /api
  
 // ─── Servir distlogin (React auth app) ───────────────────────────────────────
 app.use('/login', express.static(path.join(__dirname, 'distlogin')));
@@ -149,6 +154,7 @@ const { startMQTT } = require('./Serverxt2');
 
 async function main() {
   await initDB();
+  await initVpnNodesDB();
   startMQTT(broadcast);
 
   server.listen(PORT, () => {
