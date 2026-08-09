@@ -169,14 +169,27 @@ function syncAllToSqlite(db) {
 // IDs unicos
 // ────────────────────────────────────────────────────────────────────────
 
-// "ID nodal" — unico por equipo. ej: ND-3F9A2C
+// "ID nodal" — unico por equipo. Formato: EC + 8 caracteres random
+// alfanumericos (mayusculas + digitos) = 10 caracteres total. ej: EC7K2P9X4B
 function genNodeId() {
-  return 'ND-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+  return 'EC' + randomAlnum(8);
 }
 
-// "ID de red" — unico por cliente. ej: RED-8B21F0
+// "ID de red" — unico por cliente. 16 caracteres random alfanumericos
+// (mayusculas + digitos). ej: 9F3K7B2E1QX8M0LZ
 function genNetworkId() {
-  return 'RED-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+  return randomAlnum(16);
+}
+
+// genera un string random de `len` caracteres usando [A-Z0-9]
+function randomAlnum(len) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const bytes = crypto.randomBytes(len);
+  let out = '';
+  for (let i = 0; i < len; i++) {
+    out += chars[bytes[i] % chars.length];
+  }
+  return out;
 }
 
 function uniqueNodeId(db) {
