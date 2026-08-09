@@ -28,7 +28,23 @@ function loadDB() {
     fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
     fs.writeFileSync(DB_PATH, JSON.stringify({ nodes: {} }, null, 2));
   }
-  return JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+  const db = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+
+  // ── migracion: nodos viejos que no tienen "cliente" ──
+  // se les agrega el campo vacio para que el front no reviente
+  // y para que el filtro/busqueda por cliente los encuentre igual.
+  let migrated = false;
+  for (const node of Object.values(db.nodes)) {
+    if (node.cliente === undefined) {
+      node.cliente = '';
+      migrated = true;
+    }
+  }
+  if (migrated) {
+    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+  }
+
+  return db;
 }
 
 function saveDB(db) {
@@ -39,7 +55,7 @@ function saveDB(db) {
 }
 
 async function initVpnNodesDB() {
-  loadDB(); // solo para asegurar que el archivo exista al arrancar
+  loadDB(); // ademas de asegurar que el archivo exista, corre la migracion de arriba
   console.log('[vpn-nodes] DB lista en', DB_PATH);
 }
 
@@ -81,6 +97,7 @@ bridgeRouter.post('/register', async (req, res) => {
       id: machineId,
       name: defaultName(machineId),
       ip: nextFreeIP(db),
+      cliente: '', // se completa despues a mano desde el panel
       enabled: 0, // por defecto BLOQUEADO — hay que autorizarlo a mano desde el panel
       createdAt: new Date().toISOString(),
     };
@@ -103,7 +120,7 @@ adminRouter.get('/', (req, res) => {
 
 adminRouter.put('/:machineId', async (req, res) => {
   const { machineId } = req.params;
-  const { name, uuid, mac, enabled } = req.body || {};
+  const { name, uuid, mac, cliente, enabled } = req.body || {};
 
   const db = loadDB();
   const node = db.nodes[machineId];
@@ -115,6 +132,7 @@ adminRouter.put('/:machineId', async (req, res) => {
   }
   if (uuid !== undefined) node.uuid = uuid.trim();
   if (mac !== undefined) node.mac = mac.trim();
+  if (cliente !== undefined) node.cliente = cliente.trim();
   if (enabled !== undefined) node.enabled = enabled ? 1 : 0;
 
   await saveDB(db);
