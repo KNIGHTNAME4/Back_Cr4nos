@@ -481,6 +481,74 @@ adminRouter.get('/', (req, res) => {
   res.json(Object.values(db.nodes));
 });
 
+// ── Clientes como entidad propia (no dependen de que exista un equipo) ──
+
+// lista todos los clientes que existen, tengan o no equipos asignados
+// todavia — asi el panel puede mostrar una tarjeta vacia para un cliente
+// recien creado.
+adminRouter.get('/clientes', (req, res) => {
+  const db = loadDB();
+  const clientes = Object.entries(db.clientes || {}).map(([cliente, entry]) => ({
+    cliente,
+    networkId: entry.networkId,
+    subnetIndex: entry.subnetIndex,
+    subnetPrefix: subnetPrefixFor(entry.subnetIndex),
+    createdAt: entry.createdAt,
+  }));
+  res.json(clientes);
+});
+
+// crea un cliente nuevo (le genera su ID de red y su subred /24 propia)
+// sin necesitar que exista ningun equipo todavia. Si ya existia un
+// cliente con ese mismo nombre (comparando en MAYUSCULA), no crea uno
+// duplicado: devuelve el que ya estaba.
+adminRouter.post('/clientes', async (req, res) => {
+  const { cliente } = req.body || {};
+  if (!cliente || !cliente.trim()) {
+    return res.status(400).json({ error: 'nombre de cliente requerido' });
+  }
+
+  const db = loadDB();
+  let subnetPrefix;
+  let clienteUpper;
+  let networkId;
+  try {
+    ({ clienteUpper, networkId, subnetPrefix } = resolveCliente(db, cliente));
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+
+  await saveDB(db);
+  persistSqlite();
+
+  res.json({ cliente: clienteUpper, networkId, subnetPrefix });
+});
+
+// borra un cliente — solo si ya no tiene ningun equipo asignado, para no
+// dejar equipos "colgados" apuntando a un networkId que ya no existe.
+adminRouter.delete('/clientes/:cliente', async (req, res) => {
+  const clienteUpper = decodeURIComponent(req.params.cliente).trim().toUpperCase();
+  const db = loadDB();
+
+  if (!db.clientes || !db.clientes[clienteUpper]) {
+    return res.status(404).json({ error: 'cliente no encontrado' });
+  }
+
+  const tieneEquipos = Object.values(db.nodes).some((n) => n.cliente === clienteUpper);
+  if (tieneEquipos) {
+    return res.status(400).json({ error: 'este cliente todavia tiene equipos asignados — reasignalos o borralos primero' });
+  }
+
+  delete db.clientes[clienteUpper];
+  await saveDB(db);
+  if (sqliteDb) {
+    sqliteDb.run('DELETE FROM clientes WHERE cliente = ?', [clienteUpper]);
+    persistSqlite();
+  }
+
+  res.json({ ok: true });
+});
+
 adminRouter.put('/:machineId', async (req, res) => {
   const { machineId } = req.params;
   const { name, uuid, mac, cliente, enabled } = req.body || {};
