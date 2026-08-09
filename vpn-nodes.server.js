@@ -81,6 +81,7 @@ bridgeRouter.post('/register', async (req, res) => {
       id: machineId,
       name: defaultName(machineId),
       ip: nextFreeIP(db),
+      enabled: 0, // por defecto BLOQUEADO — hay que autorizarlo a mano desde el panel
       createdAt: new Date().toISOString(),
     };
     db.nodes[machineId] = node;
@@ -88,7 +89,7 @@ bridgeRouter.post('/register', async (req, res) => {
   node.lastSeen = new Date().toISOString();
   await saveDB(db);
 
-  res.json({ ip: node.ip, name: node.name });
+  res.json({ ip: node.ip, name: node.name, enabled: !!node.enabled });
 });
 
 // ─── Router "admin": lo usa el panel React, protegido por requireAuth ──────
@@ -102,20 +103,19 @@ adminRouter.get('/', (req, res) => {
 
 adminRouter.put('/:machineId', async (req, res) => {
   const { machineId } = req.params;
-  const { name, uuid, mac } = req.body || {};
+  const { name, uuid, mac, enabled } = req.body || {};
 
   const db = loadDB();
   const node = db.nodes[machineId];
   if (!node) return res.status(404).json({ error: 'nodo no encontrado' });
 
-  // cada campo se actualiza solo si vino en el body — asi el modal de
-  // "editar" puede mandar solo uuid+mac sin pisar el nombre, o al reves.
   if (name !== undefined) {
     if (!name.trim()) return res.status(400).json({ error: 'nombre invalido' });
     node.name = name.trim();
   }
   if (uuid !== undefined) node.uuid = uuid.trim();
   if (mac !== undefined) node.mac = mac.trim();
+  if (enabled !== undefined) node.enabled = enabled ? 1 : 0;
 
   await saveDB(db);
   res.json(node);
