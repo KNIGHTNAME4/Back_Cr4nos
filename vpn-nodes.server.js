@@ -1,16 +1,28 @@
 // vpn-nodes.server.js
 //
-// CAMBIO IMPORTANTE: un equipo ahora puede pertenecer a VARIOS clientes
-// al mismo tiempo. Antes cada nodo tenia UN solo campo "cliente" — ahora
-// tiene un arreglo "clientes": [{ cliente, networkId, ip }, ...], una
-// entrada por cada cliente al que fue agregado desde el panel. El nodeId
-// (identidad del equipo) es SIEMPRE el mismo sin importar a cuantos
-// clientes pertenezca — eso nunca cambia.
+// CAMBIO IMPORTANTE (anterior): un equipo ahora puede pertenecer a VARIOS
+// clientes al mismo tiempo. Cada nodo tiene un arreglo "clientes":
+// [{ cliente, networkId, ip }, ...], una entrada por cada cliente al que
+// fue agregado desde el panel. El nodeId (identidad del equipo) es
+// SIEMPRE el mismo sin importar a cuantos clientes pertenezca — eso
+// nunca cambia.
 //
 // La asignacion/desasignacion de clientes se hace SOLO desde estos dos
-// endpoints nuevos (el "boton" del panel los llama), nunca desde el
-// equipo. Asi un dispositivo bloqueado no tiene forma de auto-agregarse
-// a una red aunque tenga acceso fisico a la maquina.
+// endpoints (el "boton" del panel los llama), nunca desde el equipo. Asi
+// un dispositivo bloqueado no tiene forma de auto-agregarse a una red
+// aunque tenga acceso fisico a la maquina.
+//
+// CAMBIO NUEVO (este): el bridge ahora manda, ademas de "machineId":
+//   - "publicIp": la IP publica real del equipo (la saca el controller
+//     del socket UDP, el nodo no la puede falsear) — se guarda SIEMPRE
+//     que llega, se pisa con la mas reciente.
+//   - "netInfo": { gatewayIp, routerName } opcional — el nodo lo manda
+//     UNA sola vez en su vida, o cuando este servidor le pide
+//     explicitamente "requestNetInfo: true" en la respuesta.
+// La politica de "cuando pedirlo" vive en el endpoint /register: se pide
+// mientras el nodo nunca haya mandado netInfo, o mientras el panel haya
+// marcado netInfoRequestPending = true a mano (endpoint nuevo mas abajo).
+// Nada de esto reemplaza ni afecta clientes/assignments/nodeId.
 //
 // Instalar antes de correr:  npm install sql.js
 
@@ -74,6 +86,19 @@ async function initSqlite() {
     );
   `);
 
+  // columnas nuevas: si la tabla "nodos" ya existia de antes (produccion),
+  // CREATE TABLE IF NOT EXISTS no las agrega solo — hace falta ALTER TABLE.
+  // Envuelto en try/catch porque sql.js tira error si la columna ya existe
+  // (por ejemplo, en un arranque despues del primero con este codigo).
+  for (const alter of [
+    'ALTER TABLE nodos ADD COLUMN last_public_ip TEXT',
+    'ALTER TABLE nodos ADD COLUMN net_info TEXT',
+    'ALTER TABLE nodos ADD COLUMN net_info_at TEXT',
+    'ALTER TABLE nodos ADD COLUMN net_info_pending INTEGER',
+  ]) {
+    try { sqliteDb.run(alter); } catch (e) { /* columna ya existe, ignorar */ }
+  }
+
   // tabla nueva: relacion muchos-a-muchos entre nodos y clientes, con la
   // IP puntual que le corresponde a ESE nodo dentro de ESE cliente.
   sqliteDb.run(`
@@ -106,13 +131,20 @@ function upsertClienteSqlite(clienteUpper, networkId, subnetIndex) {
 function upsertNodeSqlite(node) {
   if (!sqliteDb) return;
   sqliteDb.run(
-    `INSERT INTO nodos (machine_id, node_id, name, uuid, mac, enabled, created_at, last_seen)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO nodos (machine_id, node_id, name, uuid, mac, enabled, created_at, last_seen,
+                         last_public_ip, net_info, net_info_at, net_info_pending)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(machine_id) DO UPDATE SET
        node_id = excluded.node_id, name = excluded.name, uuid = excluded.uuid,
-       mac = excluded.mac, enabled = excluded.enabled, last_seen = excluded.last_seen`,
+       mac = excluded.mac, enabled = excluded.enabled, last_seen = excluded.last_seen,
+       last_public_ip = excluded.last_public_ip, net_info = excluded.net_info,
+       net_info_at = excluded.net_info_at, net_info_pending = excluded.net_info_pending`,
     [node.id, node.nodeId, node.name || '', node.uuid || '', node.mac || '',
-     node.enabled ? 1 : 0, node.createdAt || new Date().toISOString(), node.lastSeen || null]
+     node.enabled ? 1 : 0, node.createdAt || new Date().toISOString(), node.lastSeen || null,
+     node.lastPublicIp || null,
+     node.netInfo ? JSON.stringify(node.netInfo) : null,
+     node.netInfoAt || null,
+     node.netInfoRequestPending ? 1 : 0]
   );
 
   // relacion muchos-a-muchos: se borra todo lo viejo de este equipo y se
@@ -149,7 +181,11 @@ function restoreJsonFromSqlite() {
     }
   }
 
-  const nodosRes = sqliteDb.exec('SELECT machine_id, node_id, name, uuid, mac, enabled, created_at, last_seen FROM nodos');
+  const nodosRes = sqliteDb.exec(`
+    SELECT machine_id, node_id, name, uuid, mac, enabled, created_at, last_seen,
+           last_public_ip, net_info, net_info_at, net_info_pending
+    FROM nodos
+  `);
   const nodeClientesRes = sqliteDb.exec('SELECT machine_id, cliente, network_id, ip FROM node_clientes');
   const clientesPorNodo = {};
   if (nodeClientesRes.length) {
@@ -160,11 +196,20 @@ function restoreJsonFromSqlite() {
 
   if (nodosRes.length) {
     for (const row of nodosRes[0].values) {
-      const [machineId, nodeId, name, uuid, mac, enabled, createdAt, lastSeen] = row;
+      const [machineId, nodeId, name, uuid, mac, enabled, createdAt, lastSeen,
+             lastPublicIp, netInfoRaw, netInfoAt, netInfoPending] = row;
+      let netInfo = null;
+      if (netInfoRaw) {
+        try { netInfo = JSON.parse(netInfoRaw); } catch (e) { netInfo = null; }
+      }
       db.nodes[machineId] = {
         id: machineId, nodeId, name, uuid: uuid || '', mac: mac || '',
         enabled, createdAt, lastSeen: lastSeen || null,
         clientes: clientesPorNodo[machineId] || [],
+        lastPublicIp: lastPublicIp || undefined,
+        netInfo: netInfo || undefined,
+        netInfoAt: netInfoAt || undefined,
+        netInfoRequestPending: !!netInfoPending,
       };
     }
   }
@@ -372,6 +417,14 @@ function defaultName(machineId) {
   return 'nodo-' + machineId.slice(-6).toLowerCase();
 }
 
+// isPlausibleIp: chequeo simple para no guardar cualquier cosa como
+// publicIp si algun dia llega un valor raro. Es solo informativo (nunca
+// se usa para logica de seguridad — la seguridad de identidad la da la
+// firma que verifica el controller, no esto).
+function isPlausibleIp(v) {
+  return typeof v === 'string' && v.length > 0 && v.length <= 64;
+}
+
 // ─── Router "bridge": lo llama vpn-registry-bridge.js desde la VM ──────────
 const bridgeRouter = express.Router();
 
@@ -379,7 +432,7 @@ bridgeRouter.post('/register', async (req, res) => {
   const key = req.headers['x-bridge-key'];
   if (key !== BRIDGE_SECRET) return res.status(401).json({ error: 'bridge key invalida' });
 
-  const { machineId } = req.body || {};
+  const { machineId, publicIp, netInfo } = req.body || {};
   if (!machineId || typeof machineId !== 'string') return res.status(400).json({ error: 'machineId requerido' });
 
   const db = loadDB();
@@ -400,6 +453,31 @@ bridgeRouter.post('/register', async (req, res) => {
     db.nodes[machineId] = node;
   }
   node.lastSeen = new Date().toISOString();
+
+  // publicIp: se guarda siempre que llega, se pisa con la mas reciente.
+  // Es solo informativo (visibilidad en el panel) — nunca se usa para
+  // decidir autorizacion, eso lo sigue haciendo "enabled", y la firma la
+  // verifica el controller antes de que el pedido llegue aca.
+  if (isPlausibleIp(publicIp)) {
+    node.lastPublicIp = publicIp;
+  }
+
+  // netInfo: si vino en este registro, se guarda y ya no hace falta
+  // pedirlo mas. Si nunca vino y el nodo tampoco tiene uno guardado de
+  // antes, se sigue pidiendo en cada registro (requestNetInfo=true) hasta
+  // que el nodo consiga mandarlo una vez. El panel puede ademas forzar un
+  // pedido puntual con netInfoRequestPending (endpoint mas abajo).
+  if (netInfo && typeof netInfo === 'object') {
+    node.netInfo = {
+      gatewayIp: typeof netInfo.gatewayIp === 'string' ? netInfo.gatewayIp : undefined,
+      routerName: typeof netInfo.routerName === 'string' ? netInfo.routerName : undefined,
+    };
+    node.netInfoAt = new Date().toISOString();
+    node.netInfoRequestPending = false;
+  }
+
+  const requestNetInfo = !node.netInfo || !!node.netInfoRequestPending;
+
   await saveDB(db);
   upsertNodeSqlite(node);
   persistSqlite();
@@ -409,6 +487,7 @@ bridgeRouter.post('/register', async (req, res) => {
     enabled: !!node.enabled,
     nodeId: node.nodeId,
     assignments: (node.clientes || []).map((c) => ({ networkId: c.networkId, ip: c.ip })),
+    requestNetInfo,
   });
 });
 
@@ -498,6 +577,23 @@ adminRouter.delete('/:machineId/clientes/:cliente', async (req, res) => {
   upsertNodeSqlite(node);
   persistSqlite();
   res.json(node);
+});
+
+// ── NUEVO: pedirle a un equipo puntual que mande netInfo en su proximo
+// registro, sin importar si ya lo habia mandado antes alguna vez. Util
+// para re-chequear conectividad/ISP de un equipo especifico bajo pedido.
+adminRouter.post('/:machineId/request-netinfo', async (req, res) => {
+  const { machineId } = req.params;
+  const db = loadDB();
+  const node = db.nodes[machineId];
+  if (!node) return res.status(404).json({ error: 'nodo no encontrado' });
+
+  node.netInfoRequestPending = true;
+
+  await saveDB(db);
+  upsertNodeSqlite(node);
+  persistSqlite();
+  res.json({ ok: true, node });
 });
 
 adminRouter.put('/:machineId', async (req, res) => {

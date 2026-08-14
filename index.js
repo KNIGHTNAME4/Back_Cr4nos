@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');  // creado el 16/05/2026 V0.4
 const { initDB, getAllNodes } = require('./Serverxt2');
 const { router: authRouter } = require('./auth.server'); // creado el 16/05/2026 V0.0.4
 const { bridgeRouter: vpnBridgeRouter, adminRouter: vpnAdminRouter, initVpnNodesDB } = require('./vpn-nodes.server');
+const { router: adminAuthRouter, requireAdminAuth } = require('./admin-auth.server');
 const cookieParser = require('cookie-parser'); // creado el 16/05/2026 V0.0.4
 
 
@@ -118,6 +119,15 @@ app.get(/^\/app\/.*$/, requireAuth, (req, res) => {
 //app.get((req, res) => {
  // res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 //});
+
+app.use('/admin-auth', adminAuthRouter); // para q no entre nadieeeeeeeee :v
+// ─── Servir distadmin (panel de administración Cr4nos) ───────────────────────
+// La protección real está en el React (ProtectedRoute + login hardcodeado),
+// por eso NO lleva requireAuth: login y overview son la misma SPA
+app.use('/admin', express.static(path.join(__dirname, 'distadmin')));
+app.get(/^\/admin\/.*$/, (req, res) => {
+  res.sendFile(path.join(__dirname, 'distadmin', 'index.html'));
+});
 
 // GET /api/me — devuelve el usuario autenticado desde la cookie
 app.get('/api/me', requireAuth, (req, res) => {
